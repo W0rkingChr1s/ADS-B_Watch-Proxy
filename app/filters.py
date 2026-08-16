@@ -12,13 +12,26 @@ def _to_int(value, default: int = 0) -> int:
 
 
 def _altitude_ft(raw: dict) -> int | None:
-    """alt_baro kann die Zeichenkette 'ground' sein, dann 0 ft."""
-    alt = raw.get("alt_baro", raw.get("alt_geom"))
-    if alt is None:
-        return None
-    if isinstance(alt, str):
-        return 0 if alt.lower() == "ground" else None
-    return _to_int(alt)
+    """Hoehe in Fuss, barometrisch bevorzugt, sonst geometrisch.
+
+    Zwei Eigenheiten des ADSBx-v2-Schemas:
+
+    1. ``alt_baro`` kann die Zeichenkette ``"ground"`` sein - dann 0 ft.
+    2. ``alt_baro`` kann als Schluessel vorhanden, aber ``null`` sein. Ein
+       ``raw.get("alt_baro", raw.get("alt_geom"))`` faengt das *nicht* ab: der
+       Default greift nur bei fehlendem Schluessel, nicht bei vorhandenem
+       Null-Wert. Der Fallback waere damit unerreichbar.
+    """
+    for field in ("alt_baro", "alt_geom"):
+        alt = raw.get(field)
+        if alt is None:
+            continue
+        if isinstance(alt, str):
+            if alt.strip().lower() == "ground":
+                return 0
+            continue  # unerwarteter String - naechstes Feld versuchen
+        return _to_int(alt)
+    return None
 
 
 def _vertical_trend(raw: dict, threshold: int = 200) -> int:

@@ -63,3 +63,43 @@ def test_compact_payload_shape():
     compact = out[0].to_compact()
     assert len(compact) == 6
     assert isinstance(compact[0], str)
+
+
+# --- Hoehenquelle: alt_baro vs. alt_geom ---------------------------------
+
+
+def test_alt_geom_springt_ein_wenn_alt_baro_null():
+    """alt_baro als vorhandener Null-Wert darf den Fallback nicht blockieren."""
+    raw = [ac(48.8, 11.4, None) | {"alt_geom": 7000}]
+    out = build_targets(raw, *HERE, 50, 0, 40000, 10)
+    assert len(out) == 1
+    assert out[0].altitude_ft == 7000
+
+
+def test_alt_geom_springt_ein_wenn_alt_baro_fehlt():
+    raw = [ac(48.8, 11.4, 0)]
+    del raw[0]["alt_baro"]
+    raw[0]["alt_geom"] = 7000
+    out = build_targets(raw, *HERE, 50, 0, 40000, 10)
+    assert out[0].altitude_ft == 7000
+
+
+def test_alt_baro_hat_vorrang_vor_alt_geom():
+    raw = [ac(48.8, 11.4, 5000) | {"alt_geom": 7000}]
+    assert build_targets(raw, *HERE, 50, 0, 40000, 10)[0].altitude_ft == 5000
+
+
+def test_ground_gewinnt_auch_gegen_alt_geom():
+    """Am Boden ist am Boden - die geometrische Hoehe ist dort Rauschen."""
+    raw = [ac(48.767, 11.426, "ground") | {"alt_geom": 150}]
+    assert build_targets(raw, *HERE, 50, -100, 1000, 10)[0].altitude_ft == 0
+
+
+def test_unerwarteter_string_faellt_auf_alt_geom_zurueck():
+    raw = [ac(48.8, 11.4, "quatsch") | {"alt_geom": 7000}]
+    assert build_targets(raw, *HERE, 50, 0, 40000, 10)[0].altitude_ft == 7000
+
+
+def test_ohne_jede_hoehe_wird_verworfen():
+    raw = [ac(48.8, 11.4, None)]
+    assert build_targets(raw, *HERE, 50, 0, 40000, 10) == []
