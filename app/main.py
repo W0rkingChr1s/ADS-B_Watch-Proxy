@@ -1,6 +1,7 @@
 """FastAPI-Anwendung. Ein Endpoint, der genau eine Sache richtig macht."""
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -39,7 +40,9 @@ app = FastAPI(
 
 def require_token(x_api_token: str | None = Header(default=None)) -> None:
     """Simples Shared Secret. Verhindert, dass fremde Clients das Kontingent verbrennen."""
-    if settings.token and x_api_token != settings.token:
+    if not settings.token:
+        return
+    if x_api_token is None or not secrets.compare_digest(x_api_token, settings.token):
         raise HTTPException(status_code=401, detail="invalid token")
 
 
@@ -55,7 +58,7 @@ async def traffic(
     nm: int = Query(25, ge=1, le=250, description="Radius in nautischen Meilen"),
     alt_min: int = Query(0, ge=-1500, le=60000, description="Untergrenze Hoehenband in Fuss"),
     alt_max: int = Query(45000, ge=-1500, le=60000, description="Obergrenze Hoehenband in Fuss"),
-    max: int = Query(12, ge=1, le=50, alias="max", description="Maximale Anzahl Ziele"),
+    max_targets: int = Query(12, ge=1, le=50, alias="max", description="Maximale Anzahl Ziele"),
     fmt: str = Query("compact", pattern="^(compact|full)$"),
 ) -> JSONResponse:
     if alt_min > alt_max:
@@ -69,7 +72,7 @@ async def traffic(
         log.warning("Upstream-Fehler: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    limit = min(max, settings.max_targets)
+    limit = min(max_targets, settings.max_targets)
     targets = build_targets(raw, lat, lon, nm, alt_min, alt_max, limit)
 
     if fmt == "compact":
