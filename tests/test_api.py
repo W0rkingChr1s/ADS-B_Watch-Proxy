@@ -29,7 +29,7 @@ SAMPLE = [
 
 
 class FakeClient:
-    provider = type("P", (), {"name": "fake", "attribution": "test"})()
+    provider = type("P", (), {"name": "fake", "attribution": "test", "synthetic": False})()
 
     async def fetch_point(self, lat, lon, radius_nm):
         return SAMPLE

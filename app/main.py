@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI):
     global client
     client = AdsbClient()
     log.info("Provider: %s", client.provider.name)
+    if client.provider.synthetic:
+        log.warning("DEMO-MODUS: die ausgelieferten Ziele sind erfunden, kein echter Luftraum.")
     yield
     await client.aclose()
 
@@ -48,7 +50,12 @@ def require_token(x_api_token: str | None = Header(default=None)) -> None:
 
 @app.get("/healthz", include_in_schema=False)
 async def healthz() -> dict:
-    return {"status": "ok", "version": __version__, "provider": settings.provider}
+    return {
+        "status": "ok",
+        "version": __version__,
+        "provider": settings.provider,
+        "demo": client is not None and client.provider.synthetic,
+    }
 
 
 @app.get("/v1/traffic", dependencies=[Depends(require_token)])

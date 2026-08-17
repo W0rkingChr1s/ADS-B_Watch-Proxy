@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from . import demo
 from .config import settings
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class Provider:
     base_url: str
     auth_header: str | None = None
     attribution: str = ""
+    synthetic: bool = False
 
 
 PROVIDERS: dict[str, Provider] = {
@@ -48,6 +50,15 @@ PROVIDERS: dict[str, Provider] = {
         attribution="Data from ADS-B Exchange (paid RapidAPI plan)",
     ),
 }
+
+#: Kein Upstream, sondern erfundener Verkehr - siehe ``app/demo.py``.
+#: Bewusst nicht in PROVIDERS: dort stehen ausschliesslich echte Quellen.
+DEMO_PROVIDER = Provider(
+    name="demo (synthetisch)",
+    base_url="",
+    attribution="Synthetische Testdaten - KEINE echten Flugzeuge",
+    synthetic=True,
+)
 
 
 class UpstreamError(RuntimeError):
@@ -103,9 +114,14 @@ class AdsbClient:
 
     def __init__(self, provider_key: str | None = None) -> None:
         key = (provider_key or settings.provider).lower()
-        if key not in PROVIDERS:
-            raise ValueError(f"Unbekannter Provider '{key}'. Erlaubt: {sorted(PROVIDERS)}")
-        self.provider = PROVIDERS[key]
+        if key == "demo":
+            self.provider = DEMO_PROVIDER
+        elif key in PROVIDERS:
+            self.provider = PROVIDERS[key]
+        else:
+            allowed = sorted([*PROVIDERS, "demo"])
+            raise ValueError(f"Unbekannter Provider '{key}'. Erlaubt: {allowed}")
+        self._started = time.monotonic()
         self._cache = TtlCache(settings.cache_ttl)
         self._limiter = RateLimiter(settings.min_upstream_interval)
         self._client = httpx.AsyncClient(
@@ -123,6 +139,11 @@ class AdsbClient:
         return f"{round(lat, 2)}:{round(lon, 2)}:{radius_nm}"
 
     async def fetch_point(self, lat: float, lon: float, radius_nm: int) -> list[dict]:
+        if self.provider.synthetic:
+            # Kein Cache, kein Rate Limit: es gibt nichts zu schonen, und ein
+            # eingefrorenes Radarbild waere im Test die schlechtere Antwort.
+            return demo.generate(lat, lon, radius_nm, time.monotonic() - self._started)
+
         key = self._cache_key(lat, lon, radius_nm)
         cached = self._cache.get(key)
         if cached is not None:
