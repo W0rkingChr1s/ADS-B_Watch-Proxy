@@ -84,7 +84,7 @@ def _aircraft(index: int, lat: float, lon: float, radius_nm: float, elapsed_h: f
 
     callsign = f"{_AIRLINES[index % len(_AIRLINES)]}{int(r[6] * 900) + 100}"
 
-    return {
+    out = {
         "hex": _hex_id(seed),
         "flight": callsign,
         "lat": round(a_lat, 5),
@@ -94,6 +94,14 @@ def _aircraft(index: int, lat: float, lon: float, radius_nm: float, elapsed_h: f
         "gs": ground_speed,
         "baro_rate": rate,
     }
+
+    # Am Boden stehende Maschinen melden keinen Kurs ueber Grund - so wie in den
+    # echten Daten. Damit laesst sich im Simulator pruefen, dass die Uhr fuer
+    # solche Ziele keine Richtungsmarkierung erfindet.
+    if altitude == "ground":
+        del out["track"]
+
+    return out
 
 
 def generate(lat: float, lon: float, radius_nm: int, elapsed_s: float) -> list[dict]:

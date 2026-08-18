@@ -12,7 +12,7 @@ class Target:
     bearing: int  # Grad rechtweisend, 0-359
     distance_nm: float  # gerundet auf 1 Nachkommastelle
     altitude_ft: int  # barometrisch, 0 = am Boden
-    track: int  # Kurs ueber Grund in Grad
+    track: int  # Kurs ueber Grund in Grad, -1 = vom Upstream nicht gemeldet
     vertical: int  # -1 sinkt, 0 stabil, 1 steigt
     ground_speed: int  # Knoten
 

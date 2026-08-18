@@ -49,6 +49,44 @@ def test_sorted_by_distance_and_capped():
     assert [t.callsign for t in out] == ["NEAR", "MID"]
 
 
+def test_track_missing_is_minus_one():
+    """Fehlender Kurs darf nicht als 0 (= Nord) durchgehen.
+
+    Die Uhr zeichnet daraus eine Richtungsmarkierung; eine 0 waere eine
+    erfundene Richtung statt einer fehlenden.
+    """
+    raw = ac(48.8, 11.4, 3000)
+    del raw["track"]
+    out = build_targets([raw], *HERE, 50, 0, 40000, 5)
+    assert out[0].track == -1
+
+
+def test_track_null_is_minus_one():
+    raw = ac(48.8, 11.4, 3000)
+    raw["track"] = None
+    out = build_targets([raw], *HERE, 50, 0, 40000, 5)
+    assert out[0].track == -1
+
+
+def test_track_unparsable_is_minus_one():
+    raw = ac(48.8, 11.4, 3000)
+    raw["track"] = "n/a"
+    out = build_targets([raw], *HERE, 50, 0, 40000, 5)
+    assert out[0].track == -1
+
+
+def test_track_kept_and_normalised():
+    raw = ac(48.8, 11.4, 3000)
+    raw["track"] = 0
+    assert build_targets([raw], *HERE, 50, 0, 40000, 5)[0].track == 0
+
+    raw["track"] = 359.7
+    assert build_targets([raw], *HERE, 50, 0, 40000, 5)[0].track == 359
+
+    raw["track"] = 361
+    assert build_targets([raw], *HERE, 50, 0, 40000, 5)[0].track == 1
+
+
 def test_vertical_trend():
     out = build_targets([ac(48.8, 11.4, 3000, "CLIMB", rate=1200)], *HERE, 50, 0, 40000, 5)
     assert out[0].vertical == 1

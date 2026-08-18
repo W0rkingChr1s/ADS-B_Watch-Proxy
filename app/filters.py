@@ -11,6 +11,24 @@ def _to_int(value, default: int = 0) -> int:
         return default
 
 
+def _track(raw: dict) -> int:
+    """Kurs ueber Grund in Grad, ``-1`` wenn der Upstream keinen meldet.
+
+    Wichtig, dass das unterscheidbar bleibt: ``_to_int(None)`` liefert ``0``, und
+    ``0`` ist ein gueltiger Kurs. Die Uhr zeichnet aus diesem Feld eine
+    Richtungsmarkierung - aus einem fehlenden Kurs wuerde damit die Aussage
+    "fliegt nach Norden". Mode-S-Ziele ohne ADS-B-Positionsmeldung und am Boden
+    stehende Maschinen sind genau die Faelle, in denen das Feld fehlt.
+    """
+    value = raw.get("track")
+    if value is None:
+        return -1
+    try:
+        return int(float(value)) % 360
+    except (TypeError, ValueError):
+        return -1
+
+
 def _altitude_ft(raw: dict) -> int | None:
     """Hoehe in Fuss, barometrisch bevorzugt, sonst geometrisch.
 
@@ -84,7 +102,7 @@ def build_targets(
                 bearing=int(round(bearing_deg(lat, lon, float(a_lat), float(a_lon)))) % 360,
                 distance_nm=dist,
                 altitude_ft=altitude,
-                track=_to_int(raw.get("track")) % 360,
+                track=_track(raw),
                 vertical=_vertical_trend(raw),
                 ground_speed=_to_int(raw.get("gs")),
             )
