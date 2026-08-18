@@ -24,6 +24,17 @@ client: AdsbClient | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global client
+    # Fail closed. Ein leeres Token hat frueher die Pruefung stillschweigend
+    # abgeschaltet - im LAN aergerlich, seit der Proxy ueber einen Tunnel am
+    # Internet haengt untragbar. Ein Tippfehler in der Stack-Variable wuerde
+    # sonst reichen, um /v1/traffic fuer jeden zu oeffnen. Lieber startet der
+    # Container gar nicht: das faellt sofort auf, ein offener Endpoint nicht.
+    if not settings.token:
+        raise RuntimeError(
+            "ADSB_TOKEN ist leer. Der Proxy startet nicht ohne Token - "
+            "sonst waere /v1/traffic ohne jede Pruefung erreichbar."
+        )
+
     client = AdsbClient()
     log.info("Provider: %s", client.provider.name)
     if client.provider.synthetic:
@@ -41,9 +52,14 @@ app = FastAPI(
 
 
 def require_token(x_api_token: str | None = Header(default=None)) -> None:
-    """Simples Shared Secret. Verhindert, dass fremde Clients das Kontingent verbrennen."""
+    """Simples Shared Secret. Verhindert, dass fremde Clients das Kontingent verbrennen.
+
+    Zweiter Riegel zum Startcheck in `lifespan`: ein leeres Token laesst hier
+    niemanden durch, sondern liefert 503. Erreichbar ist der Zweig nur, wenn das
+    Token zur Laufzeit geleert wird - dann ist der Dienst kaputt, nicht offen.
+    """
     if not settings.token:
-        return
+        raise HTTPException(status_code=503, detail="server misconfigured: no token set")
     if x_api_token is None or not secrets.compare_digest(x_api_token, settings.token):
         raise HTTPException(status_code=401, detail="invalid token")
 

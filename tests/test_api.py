@@ -56,6 +56,26 @@ def test_requires_token(client):
     assert r.status_code == 401
 
 
+def test_empty_token_refuses_startup(monkeypatch):
+    """Leeres Token darf die Pruefung nicht abschalten, sondern muss den Start verhindern.
+
+    Frueher galt "kein Token gesetzt" als "Pruefung aus". Seit der Proxy ueber
+    einen Cloudflare Tunnel oeffentlich erreichbar ist, waere das ein offener
+    Endpoint - ausgeloest von einer vergessenen Stack-Variable.
+    """
+    monkeypatch.setattr(main, "client", FakeClient())
+    monkeypatch.setattr(settings, "token", "")
+    with pytest.raises(RuntimeError, match="ADSB_TOKEN"), TestClient(main.app):
+        pass
+
+
+def test_empty_token_at_runtime_is_503(client, monkeypatch):
+    """Zweiter Riegel: wird das Token zur Laufzeit geleert, ist der Dienst kaputt - nicht offen."""
+    monkeypatch.setattr(settings, "token", "")
+    r = client.get("/v1/traffic?lat=48.7&lon=11.4", headers={"X-Api-Token": "irgendwas"})
+    assert r.status_code == 503
+
+
 def test_compact_default(client):
     r = client.get(
         "/v1/traffic?lat=48.7665&lon=11.4258&nm=50&alt_min=0&alt_max=45000",
